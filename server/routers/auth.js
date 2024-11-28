@@ -7,9 +7,11 @@ const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const app = express();
 const authenticate = require("../middleware/authenticate");
+const moment = require('moment');
+const { scheduleCronJobs } = require('../cronjobs'); 
 app.use(cors());
 
-// In your server code
+// In your server code_
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', 'http://http://localhost:5000');
     res.header('Access-Control-Allow-Credentials', true);
@@ -19,6 +21,7 @@ app.use((req, res, next) => {
   
 app.use(express.json());
 
+scheduleCronJobs();
 // ++++++++++++++++++++++++++ Routes +++++++++++++++++++++++++++++++++++++
 router.get('/grounds', async(req,res) => {
 
@@ -48,29 +51,54 @@ router.get('/grounds/:id', async (req, res) => {
     }
   });
 
-// router.post('/grounds', async (req,res) => {
+  // Helper function to generate date array for the next 30 days with 24 slots (0 = available)
+const generateDateArray = () => {
+  const dateArray = [];
+  for (let i = 0; i < 30; i++) {
+      const date = new Date();  // Start from today's date
+      date.setDate(date.getDate() + i);  // Increment by i days
+      const dateString = date.toISOString().split('T')[0];  // Format date as YYYY-MM-DD
 
-//     // Destructuring req.body to get the registerig users data
-//     const {name,city,location,price,Ratings,userrated,Description,image} = req.body;
+      dateArray.push({
+          date: dateString,  // Store date
+          slots: Array(24).fill(0)  // 24 slots, all initialized to 0 (available)
+      });
+  }
+  return dateArray;
+};
 
-//     // if any of the fields is not filled then giving error
-//     if(!name || !city || !location || !price || !Ratings || !userrated || !Description || !image){
-//         return res.status(422).send(`Please Fill all the details...`);
-//     }
-//     // addinng data into the database
-//     try {
+router.post('/grounds', async (req, res) => {
+  const { name, city, location, price, description, image } = req.body;
 
-//         // since user doesn't exist in database, adding user into db
-//         const ground = new Ground({name,city,location,price,Ratings,userrated,Description,image});
-//         await ground.save();
+  // If any of the required fields are not filled
+  if (!name || !city || !location || !price || !description || !image) {
+      return res.status(422).send("Please fill all the required details...");
+  }
 
-//         res.status(201).send("User successfullly Registered...");
-        
-//     } catch (error) {
-//         console.log(error);
-//     }
+  try {
+      // Generate the date array for the next 30 days with 24 slots for each day
+      const dateArray = generateDateArray();
 
-// });
+      // Create the new ground and add the generated dateArray
+      const ground = new Ground({
+          name, 
+          city, 
+          location, 
+          price, 
+          description, 
+          image,
+          dateArray,  // Add the generated dateArray
+      });
+
+      // Save the new ground to the database
+      await ground.save();
+      res.status(201).send("Ground successfully registered...");
+      
+  } catch (error) {
+      console.log(error);
+      res.status(500).send("Error registering ground.");
+  }
+});
 
 // ++++++++++++++++++++++++++ REGISTERING THE USER ROUTE ++++++++++++++++++++++++++++++++++++++++
 // since dealing with the database usiing async-await, asynce is used in the callback funnction
@@ -173,33 +201,39 @@ router.get('/moreground/:id',authenticate,async(req,res) => {
 })
 
 // ++++++++++++++++++++++++++++++++++++++++ BOOK GROUND ++++++++++++++++++++++++++++++++++++++
-router.post('/bookground', async(req,res) => {
+router.post('/bookground', async (req, res) => {
+  const { name, email, phone, gid, reservedDate, slot } = req.body;
 
-        const {name,email, phone, gid, bdate, arvtime, deptime} = req.body;
-            // if any of the fields is not filled then giving error
+  // Validate that all fields are provided
+  if (!name || !email || !phone || !reservedDate || slot === undefined) {
+      return res.status(422).json({ error: "Please fill all the details" });
+  }
 
-        if(!name || !email || !phone || !bdate || !arvtime || !deptime || (arvtime === deptime)){
-        return res.status(422).send(`Please Fill all the details...`);
-         }
+  try {
+      // Find the ground by its ID
+      const ground = await Ground.findById(gid);
 
-try{ 
-        const bookingGround = await Ground.findOne({_id : gid});
+      if (!ground) {
+          return res.status(404).json({ error: "Ground not found" });
+      }
 
-        if(bookingGround){
+      // Add the booking by calling the addBooking method on the ground instance
+      const result = await ground.addBooking({
+          cname: name,
+          cemail: email,
+          cphone: phone,
+          reservedDate,
+          slot
+      });
 
-            const booking = await bookingGround.addBooking(name, email, phone, bdate, arvtime, deptime);
+      res.status(201).json(result); // Return the success message and updated bookings
 
-            await bookingGround.save();
+  } catch (error) {
+      console.log(error);
+      res.status(500).json({ error: error.message });
+  }
+});
 
-            res.status(201).json({ message: "Customer Booking Done Successfully....."});
-
-        }
-        
-    } catch (error) {
-        console.log(error);
-    }
-
-})
 
 // ++++++++++++++++++++++++++++++++++++++++ getting the the Bookings ++++++++++++++++++++++++++++++++++++++
 router.get('/booking', async (req, res) => {
@@ -246,7 +280,44 @@ router.get('/booking', async (req, res) => {
       res.status(500).json({ error: "An error occurred while querying the database." });
     }
   });
-  
+ 
+// Auto Update 30 days ground booking dates
+router.post('/autoupdate-dates', async (req, res) => {
+    try {
+        const grounds = await Ground.find();
+
+        for (const ground of grounds) {
+            // Get today's date
+            const today = moment().format("YYYY-MM-DD");
+
+            // Remove past dates from dateArray
+            ground.dateArray = ground.dateArray.filter(entry => entry.date >= today);
+
+            // Add new dates for the next 30 days
+            const existingDates = new Set(ground.dateArray.map(entry => entry.date));
+            for (let i = 0; i < 30; i++) {
+                const futureDate = moment().add(i, 'days').format("YYYY-MM-DD");
+                if (!existingDates.has(futureDate)) {
+                    ground.dateArray.push({
+                        date: futureDate,
+                        slots: Array(24).fill(0)
+                    });
+                }
+            }
+
+            // Sort dateArray to keep dates in order
+            ground.dateArray.sort((a, b) => (a.date > b.date ? 1 : -1));
+
+            // Save the updated ground
+            await ground.save();
+        }
+
+        res.status(200).json({ message: "DateArray updated for all grounds" });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
   
   
   

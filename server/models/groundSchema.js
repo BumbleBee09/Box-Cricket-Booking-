@@ -20,13 +20,13 @@ const groundSchema = new mongoose.Schema({
     },
     Ratings: {
         type : Number,
-        required : true
+        // required : true
     },
-    userrated: {
+    userRated: {
         type : Number,
-        required : true
+        // required : true
     },
-    Description: {
+    description: {
         type : String,
         required : true
     },
@@ -34,6 +34,18 @@ const groundSchema = new mongoose.Schema({
         type : String,
         required : true
     },
+    dateArray: [
+        {
+            date: {
+                type: String, // Format: YYYY-MM-DD
+                required: true
+            },
+            slots: {
+                type: [Number], // Array of 24 slots (0: available, 1: booked)
+                default: Array(24).fill(0)
+            }
+        }
+    ],
     bookings : [
         {
             cname : {
@@ -48,39 +60,57 @@ const groundSchema = new mongoose.Schema({
                 type : Number,
                 required : true
             },
-            bdate : {
-                type : Date,
-                required : true
+            bookingDate: {
+                type: Date, // Automatically set to current date
+                default: Date.now
             },
-            date : {
-                type : Date,
-                default : Date.now
+            reservedDate: {
+                type: String, // The date for which the booking is made
+                required: true
             },
-            arvtime : {
-                type : Number,
-                required : true
-            },
-            deptime : {
-                type : Number,
-                required : true
+            slot: {
+                type: Number, // Slot index (0 to 23)
+                required: true
             }
         }
     ]
 
 });
 
-groundSchema.methods.addBooking = async function(cname, cemail, cphone, bdate, arvtime, deptime){
+groundSchema.methods.addBooking = async function({ cname, cemail, cphone, reservedDate, slot }) {
     try {
-
-        this.bookings = this.bookings.concat({cname, cemail, cphone, bdate, arvtime, deptime});
+        // Find the date entry in the dateArray
+        const dateEntry = this.dateArray.find(d => d.date === reservedDate);
+        if (!dateEntry) throw new Error(`Date ${reservedDate} not available for booking`);
+    
+        // Check if the slot is available
+        if (dateEntry.slots[slot] === 1) {
+            throw new Error(`Slot ${slot} is already booked`);
+        }
+    
+        // Mark the slot as booked (Set the slot to 1)
+        dateEntry.slots[slot] = 1;
+    
+        // Add the booking details to the bookings array
+        // Including the date the booking was made
+        this.bookings.push({
+            cname, 
+            cemail, 
+            cphone, 
+            reservedDate, 
+            slot, 
+            bookingDate: new Date() // Automatically set the booking date to the current date
+        });
+    
+        // Save the ground document
         await this.save();
-        return this.bookings;
-
-
+        
+        return { message: "Booking done successfully", bookings: this.bookings };
     } catch (error) {
-        console.log(error)
+        console.log(error);
+        throw new Error(error.message || 'Error while adding booking');
     }
-}
+};
 
 const Ground = mongoose.model("GROUND", groundSchema);
 
