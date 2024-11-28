@@ -17,8 +17,6 @@ app.use((req, res, next) => {
     next();
   });
   
-
-
 app.use(express.json());
 
 // ++++++++++++++++++++++++++ Routes +++++++++++++++++++++++++++++++++++++
@@ -76,6 +74,7 @@ router.get('/grounds/:id', async (req, res) => {
 
 // ++++++++++++++++++++++++++ REGISTERING THE USER ROUTE ++++++++++++++++++++++++++++++++++++++++
 // since dealing with the database usiing async-await, asynce is used in the callback funnction
+
 router.post('/register', async (req,res) => {
 
     // Destructuring req.body to get the registerig users data
@@ -112,8 +111,6 @@ router.post('/register', async (req,res) => {
     }
 
 });
-
-
 
 // ++++++++++++++++++++++++++ LOGGIN THE USER ROUTE ++++++++++++++++++++++++++++++++++++++++
 router.post('/login', async (req,res) => {
@@ -158,13 +155,10 @@ else{
 
 });
 
-
-
 // ++++++++++++++++++++++++++++++++++++++++ MY PROFILE ++++++++++++++++++++++++++++++++++++++
 router.get('/profile', authenticate , async(req,res) => {
     res.send(req.rootUser);
 });
-
 
 // ++++++++++++++++++++++++++++++++++++++++ LOGOUT ++++++++++++++++++++++++++++++++++++++
 router.get('/logout', async(req,res) => {
@@ -173,13 +167,10 @@ router.get('/logout', async(req,res) => {
     // res.status(200).send(`Hello Logout`);
 })
 
-
 // ++++++++++++++++++++++++++++++++++++++++ MORE GROUND ++++++++++++++++++++++++++++++++++++++
 router.get('/moreground/:id',authenticate,async(req,res) => {
     res.send(req.rootUser);
 })
-
-
 
 // ++++++++++++++++++++++++++++++++++++++++ BOOK GROUND ++++++++++++++++++++++++++++++++++++++
 router.post('/bookground', async(req,res) => {
@@ -211,27 +202,54 @@ try{
 })
 
 // ++++++++++++++++++++++++++++++++++++++++ getting the the Bookings ++++++++++++++++++++++++++++++++++++++
-app.get('/booking', async (req, res) => {
+router.get('/booking', async (req, res) => {
     try {
-      const { name, email, phone } = req.query;
-  
-      // Use a MongoDB query to find matching bookings
-      const bookings = await Ground.find({
-        'bookings': {
-          $elemMatch: {
-            'cname': name,
-            'cemail': email,
-            'cphone': phone,
+        const { name, email, phone } = req.query;
+
+        // Convert phone to a number for querying
+        const phoneNumber = parseInt(phone, 10);
+        
+        const grounds = await Ground.find({
+          'bookings': {
+            $elemMatch: {
+              'cname': name,
+              'cemail': email,
+              'cphone': phoneNumber, // Use number for comparison
+            }
           }
-        }
-      });
+        });
+        
   
-      // Return the matching bookings as a JSON response
-      res.json(bookings);
+    //   console.log('Found Grounds:', grounds); // Log found grounds
+  
+      // Flatten bookings and check the structure of the data
+      const matchingBookings = grounds.flatMap(ground =>
+        ground.bookings
+          .filter(booking => {
+            return booking.cname === name &&
+                   booking.cemail === email &&
+                   booking.cphone === parseInt(phone, 10); // Convert phone to number for comparison
+          })
+          .map(booking => ({
+            groundName: ground.name,
+            bdate: booking.bdate,
+            timing: `${booking.arvtime} - ${booking.deptime}`,
+          }))
+      );
+      
+      
+    //   console.log('Matching Bookings:', matchingBookings);
+  
+      res.json(matchingBookings);
     } catch (error) {
-      console.error(error);
+      console.error('Error while querying the database:', error);
       res.status(500).json({ error: "An error occurred while querying the database." });
     }
   });
+  
+  
+  
+  
+  
 
 module.exports = router;

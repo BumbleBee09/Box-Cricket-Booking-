@@ -3,44 +3,55 @@ import React, { useEffect, useState } from 'react';
 const Bookings = (props) => {
   const [bookingData, setBookingData] = useState([]); // Store the retrieved booking data here
 
-  useEffect(() => {
-    // Make a GET request to retrieve booking data based on props (name, email, phone)
-    const fetchData = async () => {
-      try {
-        const response = await fetch(`http://localhost:5000/bookings?name=${props.name}&email=${props.email}&phone=${props.phone}`, {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            'Content-Type': "application/json",
-          },
-          credentials: "include"
-        });
-
-        if (response.status !== 200) {
-          throw new Error("Error while getting the response");
-        }
-
-        const data = await response.json();
-        setBookingData(data);
-      } catch (error) {
-        console.error(error);
+  const fetchData = async () => {
+    try {
+      const response = await fetch(`http://localhost:5000/booking?name=${props.name}&email=${props.email}&phone=${props.phone}`);
+      
+      // Check if the response is JSON
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
       }
-    };
-
-    fetchData(); // Call the fetchData function when the component mounts
-  }, [props.name, props.email, props.phone]); // Add props as dependencies to update the data when props change
+      
+      const data = await response.json(); // Ensure the response is JSON
+      setBookingData(data);
+    } catch (error) {
+      console.error('Error fetching booking data:', error);
+    }
+  }; 
+  
+  useEffect(() => {
+    fetchData();
+  }, [props.name, props.email, props.phone]);
 
   return (
-    <>
-      {/* Render the booking data in the component */}
+    <div>
       <h2>Your Bookings</h2>
-      <ul>
-        {bookingData.map((booking, index) => (
-          <li key={index}>{/* Render booking information here */}</li>
-        ))}
-      </ul>
-    </>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Ground Name</th>
+            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Date</th>
+            <th style={{ border: '1px solid #ddd', padding: '8px' }}>Timing</th>
+          </tr>
+        </thead>
+        <tbody>
+          {bookingData.length > 0 ? (
+            bookingData.map((booking, index) => (
+              <tr key={index}>
+                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{booking.groundName}</td>
+                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{new Date(booking.bdate).toLocaleDateString()}</td>
+                <td style={{ border: '1px solid #ddd', padding: '8px' }}>{booking.timing}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="3" style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>No bookings found.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
-}
+};
 
 export default Bookings;

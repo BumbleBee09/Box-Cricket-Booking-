@@ -41,7 +41,8 @@ const Profile = () => {
 
   return (
     <>
-      Hello {userData.name}
+      <h3> Hello {userData.name},</h3>
+      <br/>
       <Bookings 
         name = {userData.name}
         email = {userData.email}

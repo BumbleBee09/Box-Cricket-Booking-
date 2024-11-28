@@ -2,6 +2,13 @@
   text-align: center;
 }
 
+/* App.css */
+.appBackground {
+  background: linear-gradient(to right, lightblue, white);
+  min-height: 100vh;
+  /* Ensure that the gradient background covers the entire viewport height */
+}
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;
