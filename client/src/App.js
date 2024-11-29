@@ -37,7 +37,7 @@ function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   return (
-    <UserContext.Provider value={{ state, dispatch }}>
+    <UserContext.Provider value={{ state, dispatch }}>  
       <div className="appBackground"> {/* Apply gradient background here */}
         <Navbar />
         <Routing />
