@@ -80,6 +80,8 @@ const groundSchema = new mongoose.Schema({
 groundSchema.methods.addBooking = async function({ cname, cemail, cphone, reservedDate, slot }) {
     try {
         // Find the date entry in the dateArray
+        console.log(`Add Bookings: ${reservedDate}`);
+        
         const dateEntry = this.dateArray.find(d => d.date === reservedDate);
         if (!dateEntry) throw new Error(`Date ${reservedDate} not available for booking`);
     

@@ -8,7 +8,6 @@ const cors = require('cors');
 const app = express();
 const authenticate = require("../middleware/authenticate");
 const moment = require('moment');
-const { scheduleCronJobs } = require('../cronjobs'); 
 app.use(cors());
 
 // In your server code_
@@ -20,8 +19,7 @@ app.use((req, res, next) => {
   });
   
 app.use(express.json());
-
-scheduleCronJobs();
+app.use(express.urlencoded({ extended: true }));
 // ++++++++++++++++++++++++++ Routes +++++++++++++++++++++++++++++++++++++
 router.get('/grounds', async(req,res) => {
 
@@ -202,11 +200,11 @@ router.get('/moreground/:id',authenticate,async(req,res) => {
 
 // ++++++++++++++++++++++++++++++++++++++++ BOOK GROUND ++++++++++++++++++++++++++++++++++++++
 router.post('/bookground', async (req, res) => {
-    const { name, email, phone, gid, reservedDate, slot } = req.body;
-
-    // Validate that all fields are provided
-    if (!name || !email || !phone || !reservedDate || slot === undefined) {
-        return res.status(422).json({ error: "Please fill all the details" });
+    const { name, email, phone, gid, bdate, selectedSlots } = req.body;
+    
+    // Validate that all required fields are provided
+    if (!name || !email || !phone || !bdate || !selectedSlots || selectedSlots.length === 0) {
+        return res.status(422).json({ error: "Please fill all the details and select at least one slot" });
     }
 
     try {
@@ -220,16 +218,18 @@ router.post('/bookground', async (req, res) => {
         // Refresh the date array while retaining existing bookings
         ground.refreshDateArray();
 
-        // Add the booking by calling the addBooking method on the ground instance
-        const result = await ground.addBooking({
-            cname: name,
-            cemail: email,
-            cphone: phone,
-            reservedDate,
-            slot
-        });
+        // Loop through selectedSlots and call addBooking for each slot
+        for (let slot of selectedSlots) {
+            const result = await ground.addBooking({
+                cname: name,
+                cemail: email,
+                cphone: phone,
+                reservedDate: bdate, // Use the passed reservedDate here
+                slot: slot
+            });
+        }
 
-        res.status(201).json(result); // Return the success message and updated bookings
+        res.status(201).json({ message: "Booking done successfully" });
 
     } catch (error) {
         console.log(error);
@@ -238,6 +238,43 @@ router.post('/bookground', async (req, res) => {
 });
 
 
+
+router.get("/available-slots/:gid/:date", async (req, res) => {
+    const { gid, date } = req.params;
+
+    // console.log(`In available slot section ${gid}, ${date}`);
+
+    try {
+        // Find the ground by ID
+        const ground = await Ground.findOne({ _id: gid });
+
+        if (!ground) {
+            return res.status(404).json({ error: "Ground not found" });
+        }
+
+        // Find the specific date entry
+        const dateEntry = ground.dateArray.find(d => d.date === date);
+        // console.log("Date Entry for Date:", date, dateEntry);
+
+        if (!dateEntry) {
+            return res.status(404).json({ error: `No slots available for the date: ${date}` });
+        }
+
+        // Get all available slots (slots with value 0)
+        const availableSlots = dateEntry.slots
+            .map((status, index) => (status === 0 ? index : null))
+            .filter(index => index !== null);
+
+        return res.status(200).json({
+            groundName: ground.name,
+            date: dateEntry.date,
+            availableSlots,
+        });
+    } catch (error) {
+        console.error("Error fetching available slots:", error);
+        return res.status(500).json({ error: "Server error while fetching available slots" });
+    }
+});
 
 // ++++++++++++++++++++++++++++++++++++++++ getting the the Bookings ++++++++++++++++++++++++++++++++++++++
 router.get('/booking', async (req, res) => {

@@ -10,6 +10,7 @@ import Register from "./components/Register";
 import Notification from "./components/Notification";
 import Logout from "./components/Logout";
 import BookGround from "./components/Grounds/MoreGround";
+import GroundBook from "./components/Grounds/GroundBook";
 import { initialState, reducer } from "./reducer/UseReducer";
 import "./App.css";  // Import the CSS file for the gradient
 
@@ -26,6 +27,7 @@ const Routing = () => {
       <Route exact path="/logout" element={<Logout />} />
       <Route exact path="/register" element={<Register />} />
       <Route exact path="/moreground/:id" element={<BookGround />} />
+      <Route exact path="/groundbook" element={<GroundBook />} />
       <Route exact path="/notification" element={<Notification />} />
     </Routes>
   );
