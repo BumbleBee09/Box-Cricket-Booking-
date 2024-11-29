@@ -112,6 +112,41 @@ groundSchema.methods.addBooking = async function({ cname, cemail, cphone, reserv
     }
 };
 
+groundSchema.methods.refreshDateArray = function () {
+    const today = new Date();
+    const refreshedDateArray = generateDateArray(today, 30); // Generate the new array for the next 30 days
+    
+    // Preserve existing bookings
+    const updatedDateArray = refreshedDateArray.map(newDateEntry => {
+        const existingDateEntry = this.dateArray.find(d => d.date === newDateEntry.date);
+        if (existingDateEntry) {
+            // Retain slots from the existing entry
+            return { ...newDateEntry, slots: existingDateEntry.slots };
+        }
+        return newDateEntry; // Use the new entry if no existing entry matches
+    });
+    
+    console.log("Dates updated while retaining existing bookings");
+    this.dateArray = updatedDateArray;
+};
+
+
+function generateDateArray(startDate, days) {
+    const dateArray = [];
+    
+    for (let i = 0; i < days; i++) {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + i); // Add 'i' days to the start date
+        
+        dateArray.push({
+            date: currentDate.toISOString().split('T')[0], // Format as 'YYYY-MM-DD'
+            slots: new Array(24).fill(0) // 24 slots, all initially set to 0
+        });
+    }
+    
+    return dateArray;
+}
+
 const Ground = mongoose.model("GROUND", groundSchema);
 
 module.exports = Ground;

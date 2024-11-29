@@ -202,37 +202,41 @@ router.get('/moreground/:id',authenticate,async(req,res) => {
 
 // ++++++++++++++++++++++++++++++++++++++++ BOOK GROUND ++++++++++++++++++++++++++++++++++++++
 router.post('/bookground', async (req, res) => {
-  const { name, email, phone, gid, reservedDate, slot } = req.body;
+    const { name, email, phone, gid, reservedDate, slot } = req.body;
 
-  // Validate that all fields are provided
-  if (!name || !email || !phone || !reservedDate || slot === undefined) {
-      return res.status(422).json({ error: "Please fill all the details" });
-  }
+    // Validate that all fields are provided
+    if (!name || !email || !phone || !reservedDate || slot === undefined) {
+        return res.status(422).json({ error: "Please fill all the details" });
+    }
 
-  try {
-      // Find the ground by its ID
-      const ground = await Ground.findById(gid);
+    try {
+        // Find the ground by its ID
+        const ground = await Ground.findById(gid);
 
-      if (!ground) {
-          return res.status(404).json({ error: "Ground not found" });
-      }
+        if (!ground) {
+            return res.status(404).json({ error: "Ground not found" });
+        }
 
-      // Add the booking by calling the addBooking method on the ground instance
-      const result = await ground.addBooking({
-          cname: name,
-          cemail: email,
-          cphone: phone,
-          reservedDate,
-          slot
-      });
+        // Refresh the date array while retaining existing bookings
+        ground.refreshDateArray();
 
-      res.status(201).json(result); // Return the success message and updated bookings
+        // Add the booking by calling the addBooking method on the ground instance
+        const result = await ground.addBooking({
+            cname: name,
+            cemail: email,
+            cphone: phone,
+            reservedDate,
+            slot
+        });
 
-  } catch (error) {
-      console.log(error);
-      res.status(500).json({ error: error.message });
-  }
+        res.status(201).json(result); // Return the success message and updated bookings
+
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: error.message });
+    }
 });
+
 
 
 // ++++++++++++++++++++++++++++++++++++++++ getting the the Bookings ++++++++++++++++++++++++++++++++++++++
@@ -280,44 +284,6 @@ router.get('/booking', async (req, res) => {
       res.status(500).json({ error: "An error occurred while querying the database." });
     }
   });
- 
-// Auto Update 30 days ground booking dates
-router.post('/autoupdate-dates', async (req, res) => {
-    try {
-        const grounds = await Ground.find();
-
-        for (const ground of grounds) {
-            // Get today's date
-            const today = moment().format("YYYY-MM-DD");
-
-            // Remove past dates from dateArray
-            ground.dateArray = ground.dateArray.filter(entry => entry.date >= today);
-
-            // Add new dates for the next 30 days
-            const existingDates = new Set(ground.dateArray.map(entry => entry.date));
-            for (let i = 0; i < 30; i++) {
-                const futureDate = moment().add(i, 'days').format("YYYY-MM-DD");
-                if (!existingDates.has(futureDate)) {
-                    ground.dateArray.push({
-                        date: futureDate,
-                        slots: Array(24).fill(0)
-                    });
-                }
-            }
-
-            // Sort dateArray to keep dates in order
-            ground.dateArray.sort((a, b) => (a.date > b.date ? 1 : -1));
-
-            // Save the updated ground
-            await ground.save();
-        }
-
-        res.status(200).json({ message: "DateArray updated for all grounds" });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
-    }
-});
   
   
   
